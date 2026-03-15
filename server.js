@@ -27,6 +27,22 @@ function lerBloqueios() {
   return JSON.parse(fs.readFileSync(BLOQUEIOS_PATH, 'utf-8'));
 }
 
+const fs = require("fs");
+
+const BARBEIROS_FILE = "./barbeiros.json";
+
+function lerBarbeiros() {
+  if (!fs.existsSync(BARBEIROS_FILE)) {
+    fs.writeFileSync(BARBEIROS_FILE, JSON.stringify(["Thiago", "Adriano", "Carlos"]));
+  }
+
+  return JSON.parse(fs.readFileSync(BARBEIROS_FILE));
+}
+
+function salvarBarbeiros(barbeiros) {
+  fs.writeFileSync(BARBEIROS_FILE, JSON.stringify(barbeiros, null, 2));
+}
+
 function salvarBloqueios(dados) {
   fs.writeFileSync(BLOQUEIOS_PATH, JSON.stringify(dados, null, 2));
 }
@@ -98,6 +114,38 @@ app.delete('/api/bloqueios/:id', (req, res) => {
   const id = Number(req.params.id);
   const bloqueios = lerBloqueios().filter(b => b.id !== id);
   salvarBloqueios(bloqueios);
+  res.json({ ok: true });
+});
+
+// ── Barbeiros ───────────────────────────────────────────
+
+app.get('/api/barbeiros', (req, res) => {
+  res.json(lerBarbeiros());
+});
+
+app.post('/api/barbeiros', (req, res) => {
+  const { nome } = req.body;
+
+  if (!nome) {
+    return res.status(400).json({ erro: 'Nome obrigatório.' });
+  }
+
+  const barbeiros = lerBarbeiros();
+
+  barbeiros.push(nome);
+
+  salvarBarbeiros(barbeiros);
+
+  res.status(201).json({ nome });
+});
+
+app.delete('/api/barbeiros/:nome', (req, res) => {
+  const nome = req.params.nome;
+
+  const barbeiros = lerBarbeiros().filter(b => b !== nome);
+
+  salvarBarbeiros(barbeiros);
+
   res.json({ ok: true });
 });
 
