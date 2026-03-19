@@ -10,67 +10,32 @@ app.use(cors());
 
 const DB_PATH = path.join(__dirname, 'agendamentos.json');
 const BLOQUEIOS_PATH = path.join(__dirname, 'bloqueios.json');
+const BARBEIROS_PATH = path.join(__dirname, 'barbeiros.json');
 
-// Garante que os arquivos existem
 if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, '[]');
 if (!fs.existsSync(BLOQUEIOS_PATH)) fs.writeFileSync(BLOQUEIOS_PATH, '[]');
+if (!fs.existsSync(BARBEIROS_PATH)) fs.writeFileSync(BARBEIROS_PATH, JSON.stringify(["Thiago", "Adriano", "Carlos"]));
 
-function lerAgendamentos() {
-  return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
-}
-
-function salvarAgendamentos(dados) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(dados, null, 2));
-}
-
-function lerBloqueios() {
-  return JSON.parse(fs.readFileSync(BLOQUEIOS_PATH, 'utf-8'));
-}
-
-const fs = require("fs");
-
-const BARBEIROS_FILE = "./barbeiros.json";
-
-function lerBarbeiros() {
-  if (!fs.existsSync(BARBEIROS_FILE)) {
-    fs.writeFileSync(BARBEIROS_FILE, JSON.stringify(["Thiago", "Adriano", "Carlos"]));
-  }
-
-  return JSON.parse(fs.readFileSync(BARBEIROS_FILE));
-}
-
-function salvarBarbeiros(barbeiros) {
-  fs.writeFileSync(BARBEIROS_FILE, JSON.stringify(barbeiros, null, 2));
-}
-
-function salvarBloqueios(dados) {
-  fs.writeFileSync(BLOQUEIOS_PATH, JSON.stringify(dados, null, 2));
-}
+function lerAgendamentos() { return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8')); }
+function salvarAgendamentos(dados) { fs.writeFileSync(DB_PATH, JSON.stringify(dados, null, 2)); }
+function lerBloqueios() { return JSON.parse(fs.readFileSync(BLOQUEIOS_PATH, 'utf-8')); }
+function salvarBloqueios(dados) { fs.writeFileSync(BLOQUEIOS_PATH, JSON.stringify(dados, null, 2)); }
+function lerBarbeiros() { return JSON.parse(fs.readFileSync(BARBEIROS_PATH, 'utf-8')); }
+function salvarBarbeiros(dados) { fs.writeFileSync(BARBEIROS_PATH, JSON.stringify(dados, null, 2)); }
 
 // ── Agendamentos ──────────────────────────────────────────
 
-// Listar todos
-app.get('/api/agendamentos', (req, res) => {
-  res.json(lerAgendamentos());
-});
+app.get('/api/agendamentos', (req, res) => { res.json(lerAgendamentos()); });
 
-// Criar agendamento
 app.post('/api/agendamentos', (req, res) => {
   const { nome, telefone, servico, barbeiro, data, horario } = req.body;
-
-  if (!nome || !telefone || !servico || !barbeiro || !data || !horario) {
+  if (!nome || !telefone || !servico || !barbeiro || !data || !horario)
     return res.status(400).json({ erro: 'Preencha todos os campos.' });
-  }
 
   const agendamentos = lerAgendamentos();
-
-  // Verifica se horário já está ocupado
-  const conflito = agendamentos.find(
-    a => a.data === data && a.horario === horario && a.barbeiro === barbeiro && a.status !== 'cancelado'
-  );
+  const conflito = agendamentos.find(a => a.data === data && a.horario === horario && a.barbeiro === barbeiro && a.status !== 'cancelado');
   if (conflito) return res.status(409).json({ erro: 'Horário já reservado!' });
 
-  // Verifica bloqueios
   const bloqueios = lerBloqueios();
   const bloqueado = bloqueios.find(b => b.data === data && b.hora === horario);
   if (bloqueado) return res.status(409).json({ erro: 'Horário bloqueado pelo barbeiro.' });
@@ -78,11 +43,9 @@ app.post('/api/agendamentos', (req, res) => {
   const novo = { id: Date.now(), nome, telefone, servico, barbeiro, data, horario, status: 'pendente' };
   agendamentos.push(novo);
   salvarAgendamentos(agendamentos);
-
   res.status(201).json(novo);
 });
 
-// Atualizar status
 app.patch('/api/agendamentos/:id', (req, res) => {
   const id = Number(req.params.id);
   const { status } = req.body;
@@ -96,9 +59,7 @@ app.patch('/api/agendamentos/:id', (req, res) => {
 
 // ── Bloqueios ─────────────────────────────────────────────
 
-app.get('/api/bloqueios', (req, res) => {
-  res.json(lerBloqueios());
-});
+app.get('/api/bloqueios', (req, res) => { res.json(lerBloqueios()); });
 
 app.post('/api/bloqueios', (req, res) => {
   const { data, hora } = req.body;
@@ -117,43 +78,38 @@ app.delete('/api/bloqueios/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Barbeiros ───────────────────────────────────────────
+// ── Barbeiros ─────────────────────────────────────────────
 
-app.get('/api/barbeiros', (req, res) => {
-  res.json(lerBarbeiros());
-});
+app.get('/api/barbeiros', (req, res) => { res.json(lerBarbeiros()); });
 
 app.post('/api/barbeiros', (req, res) => {
   const { nome } = req.body;
-
-  if (!nome) {
-    return res.status(400).json({ erro: 'Nome obrigatório.' });
-  }
-
+  if (!nome) return res.status(400).json({ erro: 'Nome obrigatório.' });
   const barbeiros = lerBarbeiros();
-
+  if (barbeiros.includes(nome)) return res.status(409).json({ erro: 'Barbeiro já existe.' });
   barbeiros.push(nome);
-
   salvarBarbeiros(barbeiros);
+  res.status(201).json(barbeiros);
+});
 
-  res.status(201).json({ nome });
+app.patch('/api/barbeiros', (req, res) => {
+  const { nomeAntigo, nomeNovo } = req.body;
+  if (!nomeAntigo || !nomeNovo) return res.status(400).json({ erro: 'Dados incompletos.' });
+  const barbeiros = lerBarbeiros().map(b => b === nomeAntigo ? nomeNovo : b);
+  salvarBarbeiros(barbeiros);
+  res.json(barbeiros);
 });
 
 app.delete('/api/barbeiros/:nome', (req, res) => {
-  const nome = req.params.nome;
-
+  const nome = decodeURIComponent(req.params.nome);
   const barbeiros = lerBarbeiros().filter(b => b !== nome);
-
   salvarBarbeiros(barbeiros);
-
-  res.json({ ok: true });
+  res.json(barbeiros);
 });
 
 // ── Status ────────────────────────────────────────────────
 
-app.get('/api/status', (req, res) => {
-  res.json({ ok: true });
-});
+app.get('/api/status', (req, res) => { res.json({ ok: true }); });
 
 app.listen(4000, function () {
   console.log('Rodando em http://localhost:4000');
