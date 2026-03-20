@@ -14,7 +14,11 @@ const BARBEIROS_PATH = path.join(__dirname, 'barbeiros.json');
 
 if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, '[]');
 if (!fs.existsSync(BLOQUEIOS_PATH)) fs.writeFileSync(BLOQUEIOS_PATH, '[]');
-if (!fs.existsSync(BARBEIROS_PATH)) fs.writeFileSync(BARBEIROS_PATH, JSON.stringify(["Thiago", "Adriano", "Carlos"]));
+if (!fs.existsSync(BARBEIROS_PATH)) fs.writeFileSync(BARBEIROS_PATH, JSON.stringify([
+  { nome: "Thiago", senha: "thiago123" },
+  { nome: "Adriano", senha: "adriano123" },
+  { nome: "Carlos", senha: "carlos123" }
+]));
 
 function lerAgendamentos() { return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8')); }
 function salvarAgendamentos(dados) { fs.writeFileSync(DB_PATH, JSON.stringify(dados, null, 2)); }
@@ -22,6 +26,26 @@ function lerBloqueios() { return JSON.parse(fs.readFileSync(BLOQUEIOS_PATH, 'utf
 function salvarBloqueios(dados) { fs.writeFileSync(BLOQUEIOS_PATH, JSON.stringify(dados, null, 2)); }
 function lerBarbeiros() { return JSON.parse(fs.readFileSync(BARBEIROS_PATH, 'utf-8')); }
 function salvarBarbeiros(dados) { fs.writeFileSync(BARBEIROS_PATH, JSON.stringify(dados, null, 2)); }
+
+// ── Login ─────────────────────────────────────────────────
+
+app.post('/api/login', (req, res) => {
+  const { nome, senha } = req.body;
+  
+  // Admin
+  if (nome === 'admin' && senha === 'admin123') {
+    return res.json({ tipo: 'admin', nome: 'Admin' });
+  }
+  
+  // Barbeiro
+  const barbeiros = lerBarbeiros();
+  const barbeiro = barbeiros.find(b => b.nome === nome && b.senha === senha);
+  if (barbeiro) {
+    return res.json({ tipo: 'barbeiro', nome: barbeiro.nome });
+  }
+  
+  res.status(401).json({ erro: 'Nome ou senha incorretos.' });
+});
 
 // ── Agendamentos ──────────────────────────────────────────
 
@@ -80,31 +104,34 @@ app.delete('/api/bloqueios/:id', (req, res) => {
 
 // ── Barbeiros ─────────────────────────────────────────────
 
-app.get('/api/barbeiros', (req, res) => { res.json(lerBarbeiros()); });
+app.get('/api/barbeiros', (req, res) => {
+  const barbeiros = lerBarbeiros();
+  res.json(barbeiros.map(b => b.nome));
+});
 
 app.post('/api/barbeiros', (req, res) => {
-  const { nome } = req.body;
-  if (!nome) return res.status(400).json({ erro: 'Nome obrigatório.' });
+  const { nome, senha } = req.body;
+  if (!nome || !senha) return res.status(400).json({ erro: 'Nome e senha obrigatórios.' });
   const barbeiros = lerBarbeiros();
-  if (barbeiros.includes(nome)) return res.status(409).json({ erro: 'Barbeiro já existe.' });
-  barbeiros.push(nome);
+  if (barbeiros.find(b => b.nome === nome)) return res.status(409).json({ erro: 'Barbeiro já existe.' });
+  barbeiros.push({ nome, senha });
   salvarBarbeiros(barbeiros);
-  res.status(201).json(barbeiros);
+  res.status(201).json(barbeiros.map(b => b.nome));
 });
 
 app.patch('/api/barbeiros', (req, res) => {
-  const { nomeAntigo, nomeNovo } = req.body;
+  const { nomeAntigo, nomeNovo, senha } = req.body;
   if (!nomeAntigo || !nomeNovo) return res.status(400).json({ erro: 'Dados incompletos.' });
-  const barbeiros = lerBarbeiros().map(b => b === nomeAntigo ? nomeNovo : b);
+  const barbeiros = lerBarbeiros().map(b => b.nome === nomeAntigo ? { nome: nomeNovo, senha: senha || b.senha } : b);
   salvarBarbeiros(barbeiros);
-  res.json(barbeiros);
+  res.json(barbeiros.map(b => b.nome));
 });
 
 app.delete('/api/barbeiros/:nome', (req, res) => {
   const nome = decodeURIComponent(req.params.nome);
-  const barbeiros = lerBarbeiros().filter(b => b !== nome);
+  const barbeiros = lerBarbeiros().filter(b => b.nome !== nome);
   salvarBarbeiros(barbeiros);
-  res.json(barbeiros);
+  res.json(barbeiros.map(b => b.nome));
 });
 
 // ── Status ────────────────────────────────────────────────
